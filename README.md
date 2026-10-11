@@ -1,4 +1,4 @@
-# Ledger — Decentralized Budget Tracker
+# Decentralized Budget Tracker
 
 A privacy-first, local-first budget tracking application with an intelligent Python machine learning backend and a minimalist Vanilla JS frontend.
 
