@@ -6,7 +6,7 @@ A privacy-first, local-first budget tracking application with an intelligent Pyt
 
 ## Architecture
 
-- **Frontend:** Pure Vanilla JS with IndexedDB for 100% private, browser-local data storage. Styled with a custom "Castle" dark aesthetic. Features a native CSS category breakdown chart.
+- **Frontend:** Pure Vanilla JS with IndexedDB for 100% private, browser-local data storage. Styled with a custom "Castle" aesthetic supporting light and dark themes with a header toggle. Features a native CSS category breakdown chart.
 - **Backend / ML Engine:** FastAPI monolith serving static assets and ML predictions. Uses **Scikit-Learn** (`RandomForestClassifier` for automated expense categorization and `LinearRegression` for spending forecasting).
 
 ---
