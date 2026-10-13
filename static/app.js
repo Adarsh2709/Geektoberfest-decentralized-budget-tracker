@@ -2,7 +2,8 @@ const DB_NAME = "LedgerDB";
 const STORE_NAME = "transactions";
 let db = null;
 
-// --- Currency display settings (Phase 1: formatting only, no conversion) ---
+// --- Currency settings with real conversion (free no-key rates) ---
+// Stored numbers are canonical USD (BASE_CURRENCY). Display converts via /rates.
 const SUPPORTED_CURRENCIES = {
     INR: { locale: "en-IN", label: "INR (₹) — India" },
     USD: { locale: "en-US", label: "USD ($) — United States" },
@@ -11,7 +12,13 @@ const SUPPORTED_CURRENCIES = {
     JPY: { locale: "ja-JP", label: "JPY (¥) — Japan" },
 };
 const CURRENCY_STORAGE_KEY = "ledger:currency";
+const RATES_STORAGE_PREFIX = "ledger:rates:";
+const BASE_CURRENCY = "USD";
+const RATES_TTL_MS = 12 * 3600 * 1000;
 let activeCurrency = "USD";
+let rateTable = { INR: 83, USD: 1, EUR: 0.92, GBP: 0.79, JPY: 150 };
+let ratesSource = "";
+let ratesReady = false;
 
 function getSavedCurrency() {
     try {
@@ -31,7 +38,7 @@ function saveCurrency(code) {
     }
 }
 
-// Format a stored plain-number amount for display only.
+// Format a target-currency amount for display.
 // Intl.NumberFormat handles symbols, grouping (e.g. ₹1,00,000 vs $100,000)
 // and zero-decimal currencies like JPY automatically.
 function formatAmount(value) {
@@ -44,6 +51,93 @@ function formatAmount(value) {
     } catch (e) {
         return `${code} ${safe.toFixed(2)}`;
     }
+}
+
+function getRate(code) {
+    const r = Number(rateTable[code]);
+    return Number.isFinite(r) && r > 0 ? r : 1;
+}
+
+// Stored amounts are USD; convert to display currency.
+function convertFromBase(baseAmount) {
+    return Number(baseAmount) * getRate(activeCurrency);
+}
+
+// Display-currency input -> canonical USD for storage.
+function convertToBase(displayAmount) {
+    return Number(displayAmount) / getRate(activeCurrency);
+}
+
+function formatBaseAmount(baseAmount) {
+    return formatAmount(convertFromBase(baseAmount));
+}
+
+function getCachedRates() {
+    try {
+        const raw = localStorage.getItem(RATES_STORAGE_PREFIX + BASE_CURRENCY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || !parsed.rates || !parsed.fetchedAt) return null;
+        if (Date.now() - parsed.fetchedAt > RATES_TTL_MS) return null;
+        return parsed;
+    } catch (e) {
+        return null;
+    }
+}
+
+function saveRatesCache(payload) {
+    try {
+        localStorage.setItem(RATES_STORAGE_PREFIX + BASE_CURRENCY, JSON.stringify({
+            rates: payload.rates,
+            source: payload.source,
+            date: payload.date,
+            fetchedAt: Date.now(),
+        }));
+    } catch (e) {
+        // Cache is best-effort.
+    }
+}
+
+async function fetchRates() {
+    const cached = getCachedRates();
+    if (cached) {
+        rateTable = { ...rateTable, ...cached.rates };
+        ratesSource = cached.source || "cache";
+        ratesReady = true;
+        updateRateStatus();
+        // Refresh in background if older than 1h, but render now.
+        if (Date.now() - cached.fetchedAt < 3600 * 1000) return rateTable;
+    }
+    try {
+        const res = await fetch(`/rates?base=${BASE_CURRENCY}`);
+        if (!res.ok) throw new Error(`rates HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.rates) throw new Error("bad rates payload");
+        rateTable = { ...rateTable, ...data.rates };
+        ratesSource = data.source || "live";
+        ratesReady = true;
+        saveRatesCache(data);
+    } catch (err) {
+        console.warn("Rates unavailable, using fallback symbols-only:", err);
+        ratesSource = cached ? "cache (offline)" : "fallback (offline)";
+        ratesReady = Boolean(cached);
+    }
+    updateRateStatus();
+    return rateTable;
+}
+
+function updateRateStatus() {
+    const el = document.getElementById("rate-status");
+    if (!el) return;
+    if (activeCurrency === BASE_CURRENCY) {
+        el.textContent = ratesSource
+            ? `Base USD • rates via ${ratesSource}.`
+            : `Base USD.`;
+        return;
+    }
+    const rate = getRate(activeCurrency);
+    const example = formatBaseAmount(100);
+    el.textContent = `1 ${BASE_CURRENCY} = ${rate} ${activeCurrency} • 100 ${BASE_CURRENCY} = ${example} • via ${ratesSource || "fallback"}. Stored in USD.`;
 }
 
 // Initialize IndexedDB
@@ -135,11 +229,14 @@ descInput.addEventListener("input", () => {
 form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const description = descInput.value.trim();
-    const amount = parseFloat(amountInput.value);
+    const entered = parseFloat(amountInput.value);
     const category = categoryInput.value.trim() || "General";
     const date = new Date().toISOString();
 
-    if (!description || isNaN(amount)) return;
+    if (!description || isNaN(entered)) return;
+
+    // Entered in display currency -> normalize to USD base for storage.
+    const amount = convertToBase(entered);
 
     await addTransaction({ description, amount, category, date });
     form.reset();
@@ -153,9 +250,10 @@ async function removeTx(id) {
 }
 
 async function loadData() {
+    await fetchRates();
     const txs = await getTransactions();
     
-    // Render list
+    // Render list (stored USD -> display currency)
     if (txs.length === 0) {
         transactionList.innerHTML = `<p class="empty-state">No transactions recorded yet.</p>`;
     } else {
@@ -166,16 +264,16 @@ async function loadData() {
                     <span class="tx-cat">${escapeHtml(tx.category)}</span>
                 </div>
                 <div class="tx-right">
-                    <span class="tx-amount">${formatAmount(tx.amount)}</span>
+                    <span class="tx-amount">${formatBaseAmount(tx.amount)}</span>
                     <button class="btn-delete" onclick="removeTx(${tx.id})">&times;</button>
                 </div>
             </div>
         `).join("");
     }
 
-    // Calculate total spent
+    // Calculate total spent (in USD base, converted for display)
     const total = txs.reduce((sum, tx) => sum + tx.amount, 0);
-    totalSpentEl.textContent = formatAmount(total);
+    totalSpentEl.textContent = formatBaseAmount(total);
 
     // Render Category Breakdown Chart
     if (txs.length === 0) {
@@ -193,7 +291,7 @@ async function loadData() {
                 <div class="chart-bar-row">
                     <div class="chart-bar-meta">
                         <span>${escapeHtml(cat)}</span>
-                        <span>${formatAmount(amt)} (${pct.toFixed(0)}%)</span>
+                        <span>${formatBaseAmount(amt)} (${pct.toFixed(0)}%)</span>
                     </div>
                     <div class="chart-bar-track">
                         <div class="chart-bar-fill" style="width: ${pct}%"></div>
@@ -215,7 +313,7 @@ async function loadData() {
                 body: JSON.stringify({ history })
             });
             const data = await res.json();
-            forecastSpentEl.textContent = formatAmount(data.forecast);
+            forecastSpentEl.textContent = formatBaseAmount(data.forecast);
             
             if (data.forecast > total * 1.2) {
                 budgetAdviceEl.textContent = `💡 Suggestion: Spending is trending upward. Consider reducing discretionary categories like Entertainment and Shopping.`;
@@ -226,7 +324,7 @@ async function loadData() {
             console.error("Forecast error:", err);
         }
     } else {
-        forecastSpentEl.textContent = formatAmount(0);
+        forecastSpentEl.textContent = formatBaseAmount(0);
         budgetAdviceEl.textContent = `Add transactions to receive AI budget suggestions.`;
     }
 }
@@ -251,15 +349,16 @@ function syncCurrencyUI() {
         amountInput.step = isZeroDecimal ? "1" : "0.01";
         amountInput.placeholder = isZeroDecimal ? "0" : "0.00";
     }
+    updateRateStatus();
 }
 
-function applyCurrency(code, options = {}) {
+async function applyCurrency(code, options = {}) {
     const { persist = true, rerender = true } = options;
     if (!SUPPORTED_CURRENCIES[code]) return;
     activeCurrency = code;
     if (persist) saveCurrency(code);
     syncCurrencyUI();
-    if (rerender) loadData();
+    if (rerender) await loadData();
 }
 
 activeCurrency = getSavedCurrency();
