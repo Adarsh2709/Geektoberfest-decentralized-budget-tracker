@@ -236,7 +236,46 @@ function escapeHtml(str) {
 }
 
 // Initialize on load
+function syncCurrencyUI() {
+    const select = document.getElementById("currency-select");
+    if (select && select.value !== activeCurrency) {
+        select.value = activeCurrency;
+    }
+    const amountLabel = document.getElementById("amount-label");
+    if (amountLabel) {
+        amountLabel.textContent = `Amount (${activeCurrency})`;
+    }
+    // Zero-decimal currencies (e.g. JPY) should not suggest cents.
+    if (amountInput) {
+        const isZeroDecimal = activeCurrency === "JPY";
+        amountInput.step = isZeroDecimal ? "1" : "0.01";
+        amountInput.placeholder = isZeroDecimal ? "0" : "0.00";
+    }
+}
+
+function applyCurrency(code, options = {}) {
+    const { persist = true, rerender = true } = options;
+    if (!SUPPORTED_CURRENCIES[code]) return;
+    activeCurrency = code;
+    if (persist) saveCurrency(code);
+    syncCurrencyUI();
+    if (rerender) loadData();
+}
+
+activeCurrency = getSavedCurrency();
+
+const currencySelect = document.getElementById("currency-select");
+if (currencySelect) {
+    currencySelect.value = activeCurrency;
+    currencySelect.addEventListener("change", (e) => {
+        applyCurrency(e.target.value);
+    });
+}
+syncCurrencyUI();
+
 initDB().then(() => {
+    // Re-sync after DOM init so totals/chart/list use saved currency.
+    syncCurrencyUI();
     loadData();
 }).catch(err => console.error("IndexedDB init failed:", err));
 
