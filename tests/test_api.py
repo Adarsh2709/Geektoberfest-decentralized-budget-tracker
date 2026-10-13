@@ -28,3 +28,20 @@ def test_static_theme_elements():
     assert 'id="theme-toggle"' in html
     assert 'data-theme' in html
 
+
+def test_static_currency_elements():
+    response = client.get("/static/index.html")
+    assert response.status_code == 200
+    html = response.text
+    assert 'id="currency-select"' in html
+    for code in ("INR", "USD", "EUR", "GBP", "JPY"):
+        assert f'value="{code}"' in html
+    assert "Display only" in html
+
+    js_response = client.get("/static/app.js")
+    assert js_response.status_code == 200
+    js = js_response.text
+    assert "Intl.NumberFormat" in js
+    assert "formatAmount" in js
+    assert "ledger:currency" in js
+

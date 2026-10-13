@@ -11,6 +11,16 @@ A privacy-first, local-first budget tracking application with an intelligent Pyt
 
 ---
 
+## Currency Display
+
+- Use the **Currency** dropdown in the header to choose from INR, USD, EUR, GBP or JPY.
+- All amounts (transaction list, totals, chart labels, forecast) are formatted with `Intl.NumberFormat` using a matching locale, so grouping and symbols are correct (for example `₹1,00,000` vs `$100,000`). JPY shows with zero decimals automatically.
+- The choice persists in `localStorage` (`ledger:currency`) across reloads.
+- **Display only — amounts are not converted.** Stored transaction numbers in IndexedDB are never modified; only the rendering changes.
+- Future Phase 2 idea: per-transaction currency with manual or `forex-python`-backed exchange rates (not part of Phase 1, no conversion happens yet).
+
+---
+
 ## Getting Started
 
 ### Prerequisites
