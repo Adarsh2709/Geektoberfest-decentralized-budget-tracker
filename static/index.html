@@ -31,7 +31,18 @@
         <header>
             <div class="header-top">
                 <h1>Decentralized Budget Tracker</h1>
-                <button type="button" id="theme-toggle" class="btn-theme-toggle" aria-label="Switch to light theme" aria-pressed="false">
+                <div class="header-controls">
+                    <div class="currency-picker">
+                        <label for="currency-select">Currency</label>
+                        <select id="currency-select" aria-label="Display currency">
+                            <option value="INR">INR (₹) — India</option>
+                            <option value="USD" selected>USD ($) — United States</option>
+                            <option value="EUR">EUR (€) — Eurozone</option>
+                            <option value="GBP">GBP (£) — United Kingdom</option>
+                            <option value="JPY">JPY (¥) — Japan</option>
+                        </select>
+                    </div>
+                    <button type="button" id="theme-toggle" class="btn-theme-toggle" aria-label="Switch to light theme" aria-pressed="false">
                     <svg class="theme-icon sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <circle cx="12" cy="12" r="5"></circle>
                         <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -47,7 +58,9 @@
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
                     </svg>
                 </button>
+                </div>
             </div>
+            <p class="currency-note">Display only — changing currency reformats amounts, it does not convert stored values.</p>
         </header>
 
         <main>
@@ -60,7 +73,7 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="amount">Amount ($)</label>
+                            <label for="amount" id="amount-label">Amount (USD)</label>
                             <input type="number" id="amount" step="0.01" placeholder="0.00" required>
                         </div>
                         <div class="form-group">

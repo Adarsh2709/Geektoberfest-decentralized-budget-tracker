@@ -94,6 +94,50 @@ header h1 {
     margin-top: 0.5rem;
 }
 
+.header-controls {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    flex-shrink: 0;
+    margin-top: 0.5rem;
+}
+
+.currency-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.currency-picker label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.currency-picker select {
+    background-color: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.55rem 0.75rem;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    cursor: pointer;
+    max-width: 12rem;
+}
+
+.currency-picker select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.currency-note {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    margin-top: 0.75rem;
+}
+
 .btn-theme-toggle:hover {
     color: var(--text-primary);
     border-color: var(--text-secondary);
