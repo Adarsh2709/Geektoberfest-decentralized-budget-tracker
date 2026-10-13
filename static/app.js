@@ -166,7 +166,7 @@ async function loadData() {
                     <span class="tx-cat">${escapeHtml(tx.category)}</span>
                 </div>
                 <div class="tx-right">
-                    <span class="tx-amount">$${tx.amount.toFixed(2)}</span>
+                    <span class="tx-amount">${formatAmount(tx.amount)}</span>
                     <button class="btn-delete" onclick="removeTx(${tx.id})">&times;</button>
                 </div>
             </div>
@@ -175,7 +175,7 @@ async function loadData() {
 
     // Calculate total spent
     const total = txs.reduce((sum, tx) => sum + tx.amount, 0);
-    totalSpentEl.textContent = `$${total.toFixed(2)}`;
+    totalSpentEl.textContent = formatAmount(total);
 
     // Render Category Breakdown Chart
     if (txs.length === 0) {
@@ -193,7 +193,7 @@ async function loadData() {
                 <div class="chart-bar-row">
                     <div class="chart-bar-meta">
                         <span>${escapeHtml(cat)}</span>
-                        <span>$${amt.toFixed(2)} (${pct.toFixed(0)}%)</span>
+                        <span>${formatAmount(amt)} (${pct.toFixed(0)}%)</span>
                     </div>
                     <div class="chart-bar-track">
                         <div class="chart-bar-fill" style="width: ${pct}%"></div>
@@ -215,7 +215,7 @@ async function loadData() {
                 body: JSON.stringify({ history })
             });
             const data = await res.json();
-            forecastSpentEl.textContent = `$${data.forecast.toFixed(2)}`;
+            forecastSpentEl.textContent = formatAmount(data.forecast);
             
             if (data.forecast > total * 1.2) {
                 budgetAdviceEl.textContent = `💡 Suggestion: Spending is trending upward. Consider reducing discretionary categories like Entertainment and Shopping.`;
@@ -226,7 +226,7 @@ async function loadData() {
             console.error("Forecast error:", err);
         }
     } else {
-        forecastSpentEl.textContent = `$0.00`;
+        forecastSpentEl.textContent = formatAmount(0);
         budgetAdviceEl.textContent = `Add transactions to receive AI budget suggestions.`;
     }
 }
