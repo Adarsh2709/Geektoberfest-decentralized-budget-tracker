@@ -2,6 +2,50 @@ const DB_NAME = "LedgerDB";
 const STORE_NAME = "transactions";
 let db = null;
 
+// --- Currency display settings (Phase 1: formatting only, no conversion) ---
+const SUPPORTED_CURRENCIES = {
+    INR: { locale: "en-IN", label: "INR (₹) — India" },
+    USD: { locale: "en-US", label: "USD ($) — United States" },
+    EUR: { locale: "en-IE", label: "EUR (€) — Eurozone" },
+    GBP: { locale: "en-GB", label: "GBP (£) — United Kingdom" },
+    JPY: { locale: "ja-JP", label: "JPY (¥) — Japan" },
+};
+const CURRENCY_STORAGE_KEY = "ledger:currency";
+let activeCurrency = "USD";
+
+function getSavedCurrency() {
+    try {
+        const saved = localStorage.getItem(CURRENCY_STORAGE_KEY);
+        if (saved && SUPPORTED_CURRENCIES[saved]) return saved;
+    } catch (e) {
+        // Storage unavailable (private mode); fall through to default.
+    }
+    return "USD";
+}
+
+function saveCurrency(code) {
+    try {
+        localStorage.setItem(CURRENCY_STORAGE_KEY, code);
+    } catch (e) {
+        // Storage disabled or blocked; setting still applies for this session.
+    }
+}
+
+// Format a stored plain-number amount for display only.
+// Intl.NumberFormat handles symbols, grouping (e.g. ₹1,00,000 vs $100,000)
+// and zero-decimal currencies like JPY automatically.
+function formatAmount(value) {
+    const num = Number(value);
+    const safe = Number.isFinite(num) ? num : 0;
+    const code = SUPPORTED_CURRENCIES[activeCurrency] ? activeCurrency : "USD";
+    const locale = SUPPORTED_CURRENCIES[code].locale;
+    try {
+        return new Intl.NumberFormat(locale, { style: "currency", currency: code }).format(safe);
+    } catch (e) {
+        return `${code} ${safe.toFixed(2)}`;
+    }
+}
+
 // Initialize IndexedDB
 function initDB() {
     return new Promise((resolve, reject) => {
