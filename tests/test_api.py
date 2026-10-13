@@ -20,3 +20,11 @@ def test_forecast_endpoint():
     data = response.json()
     assert "forecast" in data
     assert data["forecast"] > 120.0
+
+def test_static_theme_elements():
+    response = client.get("/static/index.html")
+    assert response.status_code == 200
+    html = response.text
+    assert 'id="theme-toggle"' in html
+    assert 'data-theme' in html
+
