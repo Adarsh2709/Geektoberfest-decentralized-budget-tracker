@@ -1,4 +1,4 @@
-"""Static checks for Phase 1 currency display formatting (no backend needed)."""
+"""Static checks for currency conversion display (Phase 2, free no-key rates)."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,12 +17,13 @@ def test_currency_dropdown_has_required_currencies():
         assert f'value="{code}"' in html, f"missing currency option {code}"
 
 
-def test_display_only_note_present():
+def test_conversion_note_present():
     html = read(HTML)
     assert "currency-note" in html
+    assert 'id="rate-status"' in html
     lowered = html.lower()
-    assert "display only" in lowered
-    assert "does not convert" in lowered or "not convert" in lowered
+    assert "convert" in lowered
+    assert "stored in usd" in lowered
 
 
 def test_formatter_uses_intl_numberformat():
@@ -37,24 +38,28 @@ def test_formatter_uses_intl_numberformat():
     assert "ja-JP" in js
 
 
-def test_all_render_sites_use_formatter():
+def test_all_render_sites_use_converted_formatter():
     js = read(JS)
     # No leftover hardcoded dollar formatting for amounts.
     assert "${tx.amount.toFixed" not in js
     assert "${total.toFixed" not in js
     assert "${amt.toFixed" not in js
     assert "${data.forecast.toFixed" not in js
-    assert "formatAmount(tx.amount)" in js
-    assert "formatAmount(total)" in js
-    assert "formatAmount(amt)" in js
-    assert "formatAmount(data.forecast)" in js
-    assert "formatAmount(0)" in js
+    assert "formatBaseAmount(tx.amount)" in js
+    assert "formatBaseAmount(total)" in js
+    assert "formatBaseAmount(amt)" in js
+    assert "formatBaseAmount(data.forecast)" in js
+    assert "formatBaseAmount(0)" in js
 
 
-def test_storage_is_display_only():
+def test_storage_normalized_to_usd_base():
     js = read(JS)
-    # Amounts are still stored as plain numbers; currency applies only at render.
+    # Entries typed in display currency are normalized to USD base for storage.
+    assert "convertToBase(entered)" in js
+    assert "convertFromBase" in js
+    assert "BASE_CURRENCY" in js
+    assert '"/rates?base=' in js or "/rates?base=" in js
     assert "await addTransaction({ description, amount, category, date });" in js
     assert "localStorage.getItem" in js and "ledger:currency" in js
-    # Amount label/step syncs with currency without changing stored data.
+    # Amount label/step syncs with currency.
     assert "amount-label" in js
