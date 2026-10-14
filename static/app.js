@@ -197,6 +197,8 @@ const form = document.getElementById("transaction-form");
 const transactionList = document.getElementById("transaction-list");
 const totalSpentEl = document.getElementById("total-spent");
 const forecastSpentEl = document.getElementById("forecast-spent");
+const forecastRangeEl = document.getElementById("forecast-range");
+const forecastConfidenceEl = document.getElementById("forecast-confidence");
 const budgetAdviceEl = document.getElementById("budget-advice");
 const expenseChartEl = document.getElementById("expense-chart");
 
@@ -301,11 +303,29 @@ async function loadData() {
         }).join("");
     }
 
-    // Group by month for forecasting (mock grouping by index for simplicity)
-    // In a real app, group by YYYY-MM
+    // Group by month for forecasting (or chronological buckets if few months)
     if (txs.length > 0) {
-        // Create dummy monthly history based on totals or entries
-        const history = [total * 0.8, total * 0.9, total]; 
+        const monthMap = {};
+        txs.forEach(tx => {
+            const m = (tx.date || "").slice(0, 7);
+            if (m) monthMap[m] = (monthMap[m] || 0) + tx.amount;
+        });
+        const monthKeys = Object.keys(monthMap).sort();
+        let history;
+        if (monthKeys.length >= 3) {
+            history = monthKeys.map(k => monthMap[k]);
+        } else if (txs.length < 3) {
+            history = txs.map(t => t.amount);
+        } else {
+            // Chunk transactions across periods to estimate spending trend
+            const chunkSize = Math.ceil(txs.length / 3);
+            history = [
+                txs.slice(0, chunkSize).reduce((s, t) => s + t.amount, 0),
+                txs.slice(chunkSize, chunkSize * 2).reduce((s, t) => s + t.amount, 0),
+                txs.slice(chunkSize * 2).reduce((s, t) => s + t.amount, 0)
+            ];
+        }
+
         try {
             const res = await fetch("/forecast", {
                 method: "POST",
@@ -314,7 +334,27 @@ async function loadData() {
             });
             const data = await res.json();
             forecastSpentEl.textContent = formatBaseAmount(data.forecast);
-            
+
+            if (forecastConfidenceEl) {
+                const conf = (data.confidence || "low").toLowerCase();
+                const label = conf.charAt(0).toUpperCase() + conf.slice(1);
+                forecastConfidenceEl.textContent = label;
+                forecastConfidenceEl.className = `confidence-badge confidence-${conf}`;
+                forecastConfidenceEl.title = data.message || `Confidence: ${label}`;
+            }
+
+            if (forecastRangeEl) {
+                if (data.lower !== null && data.lower !== undefined && data.upper !== null && data.upper !== undefined) {
+                    forecastRangeEl.textContent = `Range: ${formatBaseAmount(data.lower)} – ${formatBaseAmount(data.upper)}`;
+                    forecastRangeEl.title = "95% prediction interval (±1.96σ)";
+                } else if (data.message) {
+                    forecastRangeEl.textContent = "Range: N/A (need ≥3 months)";
+                    forecastRangeEl.title = data.message;
+                } else {
+                    forecastRangeEl.textContent = "Range: N/A";
+                }
+            }
+
             if (data.forecast > total * 1.2) {
                 budgetAdviceEl.textContent = `💡 Suggestion: Spending is trending upward. Consider reducing discretionary categories like Entertainment and Shopping.`;
             } else {
@@ -322,9 +362,25 @@ async function loadData() {
             }
         } catch (err) {
             console.error("Forecast error:", err);
+            if (forecastConfidenceEl) {
+                forecastConfidenceEl.textContent = "Error";
+                forecastConfidenceEl.className = "confidence-badge confidence-none";
+            }
+            if (forecastRangeEl) {
+                forecastRangeEl.textContent = "Range: Unavailable";
+            }
         }
     } else {
         forecastSpentEl.textContent = formatBaseAmount(0);
+        if (forecastConfidenceEl) {
+            forecastConfidenceEl.textContent = "—";
+            forecastConfidenceEl.className = "confidence-badge confidence-none";
+            forecastConfidenceEl.title = "No transactions recorded yet";
+        }
+        if (forecastRangeEl) {
+            forecastRangeEl.textContent = "Range: —";
+            forecastRangeEl.title = "";
+        }
         budgetAdviceEl.textContent = `Add transactions to receive AI budget suggestions.`;
     }
 }
